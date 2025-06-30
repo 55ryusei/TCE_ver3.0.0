@@ -1737,6 +1737,11 @@
           item.appendChild(nameSpan);
           item.appendChild(infoSpan);
           
+          // スクロール検知用の変数
+          let touchStartY = 0;
+          let touchStartTime = 0;
+          let hasMoved = false;
+          
           const handleItemClick = () => {
             isDropdownActionInProgress = true;
             input.value = name;
@@ -1761,17 +1766,42 @@
             }, 200);
           };
 
-          // iPad対応：touchend のみ使用（clickとの重複を避ける）
+          // タッチ開始
+          item.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+            touchStartTime = Date.now();
+            hasMoved = false;
+          }, { passive: true });
+          
+          // タッチ移動
+          item.addEventListener('touchmove', (e) => {
+            const touchCurrentY = e.touches[0].clientY;
+            const moveDistance = Math.abs(touchCurrentY - touchStartY);
+            
+            // 10px以上移動したらスクロールと判定
+            if (moveDistance > 10) {
+              hasMoved = true;
+            }
+          }, { passive: true });
+          
+          // タッチ終了
           item.addEventListener('touchend', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            handleItemClick();
-          });
+            
+            const touchDuration = Date.now() - touchStartTime;
+            
+            // スクロールしていない場合のみ選択処理を実行
+            // 条件: 移動距離が小さく、タッチ時間が短い（長押しでない）
+            if (!hasMoved && touchDuration < 500) {
+              handleItemClick();
+            }
+          }, { passive: false });
           
-          // デスクトップ用のclickイベント（タッチデバイスでは発火しない）
+          // デスクトップ用のclickイベント
           item.addEventListener('click', (e) => {
-            // タッチイベントがある場合はclickを無視
-            if (e.type === 'click' && 'ontouchstart' in window) {
+            // タッチデバイスの場合はclickを無視
+            if ('ontouchstart' in window) {
               return;
             }
             handleItemClick();
@@ -1782,19 +1812,6 @@
       }
       
       dropdown.classList.add('show');
-      
-      // プルダウンメニュー全体のタッチイベント処理を強化
-      dropdown.addEventListener('touchstart', (e) => {
-        e.stopPropagation();
-      }, { passive: false });
-      
-      dropdown.addEventListener('touchmove', (e) => {
-        e.stopPropagation();
-      }, { passive: false });
-      
-      dropdown.addEventListener('touchend', (e) => {
-        e.stopPropagation();
-      }, { passive: false });
     }
 
     // ドロップダウンメニューを非表示
