@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>勤怠管理</title>
   
+  <!-- PWA対応 -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#3b82f6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="勤怠管理">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  
   <style>
     * {
       margin: 0;
@@ -32,6 +40,71 @@
       user-select: none;
     }
 
+    /* オフライン状態の表示 */
+    .offline-indicator {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 152, 0, 0.95);
+      color: white;
+      text-align: center;
+      padding: 8px;
+      font-size: 0.9em;
+      font-weight: 500;
+      z-index: 10000;
+      display: none;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .offline-indicator.show {
+      display: block;
+      animation: slideInAlertTop 0.3s ease-out;
+    }
+
+    /* PWAインストールボタン */
+    .install-prompt {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 25px;
+      border: none;
+      font-weight: 500;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+      display: none;
+      z-index: 1000;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+    }
+
+    .install-prompt:hover {
+      transform: translateX(-50%) translateY(-2px);
+      box-shadow: 0 12px 30px rgba(59, 130, 246, 0.4);
+    }
+
+    .install-prompt.show {
+      display: block;
+      animation: slideInAlertBottom 0.3s ease-out;
+    }
+
+    @keyframes slideInAlertBottom {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(100%);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+
     .logo {
       margin-bottom: 40px;
       opacity: 0;
@@ -52,6 +125,34 @@
     }
 
     .logo img:hover {
+      transform: scale(1.02) translateY(-2px);
+      box-shadow: 
+        0 25px 50px rgba(0,0,0,0.15),
+        0 12px 20px rgba(0,0,0,0.08),
+        0 0 0 1px rgba(255,255,255,0.9);
+    }
+
+    /* ロゴ画像が読み込めない場合のフォールバック */
+    .logo-fallback {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2em;
+      color: white;
+      font-weight: bold;
+      box-shadow: 
+        0 20px 40px rgba(0,0,0,0.1),
+        0 8px 16px rgba(0,0,0,0.06),
+        0 0 0 1px rgba(255,255,255,0.9);
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      transition: all 0.4s ease;
+    }
+
+    .logo-fallback:hover {
       transform: scale(1.02) translateY(-2px);
       box-shadow: 
         0 25px 50px rgba(0,0,0,0.15),
@@ -1356,6 +1457,19 @@
         border-radius: 12px;
       }
 
+      /* スマホ用のインストールプロンプト調整 */
+      .install-prompt {
+        bottom: 10px;
+        left: 10px;
+        right: 10px;
+        transform: none;
+        border-radius: 16px;
+      }
+
+      .install-prompt.show {
+        animation: slideInAlertMobile 0.3s ease-out;
+      }
+
       @keyframes slideInAlertMobile {
         from {
           opacity: 0;
@@ -1387,8 +1501,19 @@
   </style>
 </head>
 <body>
+  <!-- オフライン状態インジケーター -->
+  <div class="offline-indicator" id="offlineIndicator">
+    オフラインモードで動作中
+  </div>
+  
+  <!-- PWAインストールプロンプト -->
+  <button class="install-prompt" id="installPrompt" style="display: none;">
+    📱 アプリとしてインストール
+  </button>
+
   <div class="logo">
-    <img src="logo.png" alt="勤怠管理ロゴ">
+    <img src="logo.png" alt="勤怠管理ロゴ" id="logoImg" onerror="this.style.display='none'; document.getElementById('logoFallback').style.display='flex';">
+    <div class="logo-fallback" id="logoFallback" style="display: none;">勤</div>
   </div>
   <div class="container">
     <div class="clock">
@@ -1413,6 +1538,7 @@
     <div id="adminMenu">
       <button id="backupBtn" class="admin-btn success">バックアップ</button>
       <button id="restoreBtn" class="admin-btn warning">リストア</button>
+      <button id="helpBtn" class="admin-btn">ヘルプ</button>
       <input type="file" id="restoreFile" style="display:none;">
       <button id="clearAllBtn" class="admin-btn danger">全データ削除</button>
     </div>
@@ -1433,6 +1559,57 @@
 
   <script>
     const STORAGE_KEY = 'timeCards';
+    let deferredPrompt; // PWAインストールプロンプト用
+
+    // Service Worker登録
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then((registration) => {
+            console.log('SW registered: ', registration);
+          })
+          .catch((registrationError) => {
+            console.log('SW registration failed: ', registrationError);
+          });
+      });
+    }
+
+    // PWAインストールプロンプト
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const installButton = document.getElementById('installPrompt');
+      installButton.style.display = 'block';
+      installButton.classList.add('show');
+    });
+
+    // インストールボタンのクリックイベント
+    document.getElementById('installPrompt').addEventListener('click', () => {
+      const installButton = document.getElementById('installPrompt');
+      installButton.style.display = 'none';
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+          console.log('User accepted the A2HS prompt');
+        } else {
+          console.log('User dismissed the A2HS prompt');
+        }
+        deferredPrompt = null;
+      });
+    });
+
+    // オンライン/オフライン状態の監視
+    function updateOnlineStatus() {
+      const offlineIndicator = document.getElementById('offlineIndicator');
+      if (navigator.onLine) {
+        offlineIndicator.classList.remove('show');
+      } else {
+        offlineIndicator.classList.add('show');
+      }
+    }
+
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
 
     // バックアップガイドを表示
     function showBackupGuide() {
@@ -1441,30 +1618,34 @@
       
       guide.innerHTML = `
         <div class="backup-guide-content">
-          <h3>📁 ファイルアプリに保存する方法</h3>
-          <p>ダウンロード後、以下の手順でファイルアプリに保存できます：</p>
+          <h3>📁 バックアップファイルの保存方法</h3>
+          <p>ダウンロードしたファイルを「ファイル」アプリに保存する手順：</p>
           
           <div class="backup-guide-steps">
             <div class="backup-guide-step">
               <div class="step-number">1</div>
-              <span>画面下部に表示される「ダウンロード」アイコンをタップ</span>
+              <span>ダウンロード後、画面下部の「ダウンロード」アイコンをタップ</span>
             </div>
             <div class="backup-guide-step">
               <div class="step-number">2</div>
-              <span>ダウンロードファイルの右側の「共有」ボタンをタップ</span>
+              <span>ファイル名の右側にある「共有」ボタンをタップ</span>
             </div>
             <div class="backup-guide-step">
               <div class="step-number">3</div>
-              <span>「"ファイル"に保存」をタップ</span>
+              <span>「"ファイル"に保存」を選択</span>
             </div>
             <div class="backup-guide-step">
               <div class="step-number">4</div>
-              <span>保存場所を選択して「保存」をタップ</span>
+              <span>保存場所（iCloud Drive、このiPad内など）を選んで「保存」</span>
             </div>
           </div>
           
+          <p style="font-size: 0.9em; color: #666; margin-top: 16px;">
+            💡 共有メニューが表示される場合は、直接「"ファイル"に保存」を選択できます。
+          </p>
+          
           <button class="backup-guide-close" onclick="this.parentElement.parentElement.remove()">
-            分かりました
+            閉じる
           </button>
         </div>
       `;
@@ -2372,6 +2553,8 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+      updateOnlineStatus(); // オンライン状態チェックを追加
+      
       const nameInput = document.getElementById('empName');
       const searchInput = document.getElementById('searchEmpName');
       const btnClockIn = document.getElementById('btnClockIn');
@@ -2566,11 +2749,6 @@
         a.click(); 
         URL.revokeObjectURL(url);
         
-        // ガイドを表示
-        setTimeout(() => {
-          showBackupGuide();
-        }, 1000);
-        
         showAlert('バックアップファイルをダウンロードしました', 'success');
       });
 
@@ -2604,6 +2782,11 @@
         } else if (pwd !== null) {
           showAlert('パスワードが違います', 'error');
         }
+      });
+
+      // ヘルプボタン
+      document.getElementById('helpBtn').addEventListener('click', () => {
+        showBackupGuide();
       });
       
       // 時計の初期化と更新
