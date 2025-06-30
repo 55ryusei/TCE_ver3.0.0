@@ -1737,12 +1737,15 @@
           item.appendChild(nameSpan);
           item.appendChild(infoSpan);
           
-          // スクロール検知用の変数
+          // スクロール検知用の変数（実機対応）
           let touchStartY = 0;
           let touchStartTime = 0;
-          let hasMoved = false;
+          let touchStartX = 0;
+          let isScrolling = false;
           
           const handleItemClick = () => {
+            if (isScrolling) return; // スクロール中は選択しない
+            
             isDropdownActionInProgress = true;
             input.value = name;
             hideDropdown(dropdownId);
@@ -1766,37 +1769,44 @@
             }, 200);
           };
 
-          // タッチ開始
+          // タッチ開始（実機対応：より厳密な検知）
           item.addEventListener('touchstart', (e) => {
-            touchStartY = e.touches[0].clientY;
+            const touch = e.touches[0];
+            touchStartY = touch.clientY;
+            touchStartX = touch.clientX;
             touchStartTime = Date.now();
-            hasMoved = false;
+            isScrolling = false;
           }, { passive: true });
           
-          // タッチ移動
+          // タッチ移動（実機対応：より敏感な検知）
           item.addEventListener('touchmove', (e) => {
-            const touchCurrentY = e.touches[0].clientY;
-            const moveDistance = Math.abs(touchCurrentY - touchStartY);
+            const touch = e.touches[0];
+            const deltaY = Math.abs(touch.clientY - touchStartY);
+            const deltaX = Math.abs(touch.clientX - touchStartX);
             
-            // 10px以上移動したらスクロールと判定
-            if (moveDistance > 10) {
-              hasMoved = true;
+            // 実機では5px以上の移動でスクロールと判定（より敏感に）
+            if (deltaY > 5 || deltaX > 5) {
+              isScrolling = true;
             }
           }, { passive: true });
           
-          // タッチ終了
+          // タッチ終了（実機対応）
           item.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            
             const touchDuration = Date.now() - touchStartTime;
             
-            // スクロールしていない場合のみ選択処理を実行
-            // 条件: 移動距離が小さく、タッチ時間が短い（長押しでない）
-            if (!hasMoved && touchDuration < 500) {
-              handleItemClick();
+            // 実機対応：より厳しい条件でタップ判定
+            if (!isScrolling && touchDuration < 300) {
+              e.preventDefault();
+              e.stopPropagation();
+              // 少し遅延を入れて確実に実行
+              setTimeout(() => {
+                handleItemClick();
+              }, 50);
             }
-          }, { passive: false });
+            
+            // リセット
+            isScrolling = false;
+          });
           
           // デスクトップ用のclickイベント
           item.addEventListener('click', (e) => {
@@ -1812,6 +1822,23 @@
       }
       
       dropdown.classList.add('show');
+      
+      // ドロップダウン全体でスクロールイベントを監視（実機対応）
+      dropdown.addEventListener('scroll', () => {
+        // スクロール中は全アイテムをスクロール状態にマーク
+        const items = dropdown.querySelectorAll('.dropdown-item');
+        items.forEach(item => {
+          item._isScrolling = true;
+        });
+        
+        // スクロール終了後にリセット
+        clearTimeout(dropdown._scrollTimeout);
+        dropdown._scrollTimeout = setTimeout(() => {
+          items.forEach(item => {
+            item._isScrolling = false;
+          });
+        }, 100);
+      }, { passive: true });
     }
 
     // ドロップダウンメニューを非表示
@@ -2517,7 +2544,7 @@
         searchInput.focus();
       });
       
-      // 外部クリック・タッチでドロップダウンを閉じる（キーボードは維持）
+      // 外部クリック・タッチでドロップダウンを閉じる
       const hideDropdownsOnOutsideTouch = (e) => {
         if (isDropdownActionInProgress) return;
         
@@ -2543,10 +2570,19 @@
         }
       };
       
-      // タッチデバイス用（iPadなど）- より確実なイベント制御
-      document.addEventListener('touchstart', hideDropdownsOnOutsideTouch, { passive: false });
+      // タッチデバイス用：touchend を使用してスクロールとの干渉を避ける
+      document.addEventListener('touchend', (e) => {
+        // ドロップダウンが表示されている場合のみ処理
+        const empDropdown = document.getElementById('empNameDropdown');
+        const searchDropdown = document.getElementById('searchEmpNameDropdown');
+        const isAnyDropdownVisible = empDropdown.classList.contains('show') || searchDropdown.classList.contains('show');
+        
+        if (isAnyDropdownVisible) {
+          hideDropdownsOnOutsideTouch(e);
+        }
+      }, { passive: true });
       
-      // デスクトップ用（タッチデバイスでない場合のみ）
+      // デスクトップ用
       if (!('ontouchstart' in window)) {
         document.addEventListener('click', hideDropdownsOnOutsideTouch);
       }
