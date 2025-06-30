@@ -1737,11 +1737,12 @@
           item.appendChild(nameSpan);
           item.appendChild(infoSpan);
           
-          // ダブルタップ用の変数
-          let firstTapTime = 0;
+          // ダブルタップ用の変数（iPad専用強化版）
           let tapCount = 0;
+          let firstTapTime = 0;
+          let tapTimeout = null;
           
-          const handleItemClick = () => {
+          const handleItemSelect = () => {
             isDropdownActionInProgress = true;
             input.value = name;
             hideDropdown(dropdownId);
@@ -1765,45 +1766,79 @@
             }, 200);
           };
 
-          // タッチイベント（ダブルタップ方式）
+          // 全イベントを無効化してtouchendのみで制御（iPad対応）
+          item.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+          }, { passive: false });
+          
+          item.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+          }, { passive: false });
+          
+          // ダブルタップ検知（iPad専用）
           item.addEventListener('touchend', (e) => {
             e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
             
             const currentTime = Date.now();
             tapCount++;
             
             if (tapCount === 1) {
-              // 最初のタップ：時刻を記録して待機
+              // 1回目のタップ：視覚的フィードバックと待機
               firstTapTime = currentTime;
-              item.style.backgroundColor = 'rgba(59, 130, 246, 0.1)'; // 視覚的フィードバック
+              item.style.backgroundColor = 'rgba(59, 130, 246, 0.15)';
+              item.style.transform = 'scale(0.98)';
               
-              // 500ms以内に2回目のタップがなければリセット
-              setTimeout(() => {
-                if (tapCount === 1) {
-                  tapCount = 0;
-                  item.style.backgroundColor = ''; // 背景色をリセット
-                }
-              }, 500);
+              // 400ms以内に2回目のタップがなければリセット
+              tapTimeout = setTimeout(() => {
+                tapCount = 0;
+                item.style.backgroundColor = '';
+                item.style.transform = '';
+              }, 400);
               
             } else if (tapCount === 2) {
-              // 2回目のタップ：500ms以内なら選択実行
-              if (currentTime - firstTapTime <= 500) {
-                item.style.backgroundColor = ''; // 背景色をリセット
-                handleItemClick();
+              // 2回目のタップ：400ms以内なら選択実行
+              if (currentTime - firstTapTime <= 400) {
+                clearTimeout(tapTimeout);
+                item.style.backgroundColor = '';
+                item.style.transform = '';
+                handleItemSelect();
               }
-              // カウントリセット
               tapCount = 0;
             }
-          });
+          }, { passive: false });
           
-          // デスクトップ用のclickイベント（従来通り1回クリック）
+          // clickイベントを完全に無効化（iPad対応）
           item.addEventListener('click', (e) => {
-            // タッチデバイスの場合はclickを無視
-            if ('ontouchstart' in window) {
-              return;
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            
+            // タッチデバイス以外（純粋なPC）でのみ実行
+            if (!('ontouchstart' in window) && !navigator.maxTouchPoints) {
+              handleItemSelect();
             }
-            handleItemClick();
-          });
+          }, true);
+          
+          // その他のイベントも無効化
+          item.addEventListener('mousedown', (e) => {
+            if ('ontouchstart' in window) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }, true);
+          
+          item.addEventListener('mouseup', (e) => {
+            if ('ontouchstart' in window) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }, true);
           
           dropdown.appendChild(item);
         });
