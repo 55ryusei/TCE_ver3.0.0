@@ -1737,15 +1737,11 @@
           item.appendChild(nameSpan);
           item.appendChild(infoSpan);
           
-          // スクロール検知用の変数（実機対応）
-          let touchStartY = 0;
-          let touchStartTime = 0;
-          let touchStartX = 0;
-          let isScrolling = false;
+          // ダブルタップ用の変数
+          let firstTapTime = 0;
+          let tapCount = 0;
           
           const handleItemClick = () => {
-            if (isScrolling) return; // スクロール中は選択しない
-            
             isDropdownActionInProgress = true;
             input.value = name;
             hideDropdown(dropdownId);
@@ -1769,46 +1765,38 @@
             }, 200);
           };
 
-          // タッチ開始（実機対応：より厳密な検知）
-          item.addEventListener('touchstart', (e) => {
-            const touch = e.touches[0];
-            touchStartY = touch.clientY;
-            touchStartX = touch.clientX;
-            touchStartTime = Date.now();
-            isScrolling = false;
-          }, { passive: true });
-          
-          // タッチ移動（実機対応：より敏感な検知）
-          item.addEventListener('touchmove', (e) => {
-            const touch = e.touches[0];
-            const deltaY = Math.abs(touch.clientY - touchStartY);
-            const deltaX = Math.abs(touch.clientX - touchStartX);
-            
-            // 実機では5px以上の移動でスクロールと判定（より敏感に）
-            if (deltaY > 5 || deltaX > 5) {
-              isScrolling = true;
-            }
-          }, { passive: true });
-          
-          // タッチ終了（実機対応）
+          // タッチイベント（ダブルタップ方式）
           item.addEventListener('touchend', (e) => {
-            const touchDuration = Date.now() - touchStartTime;
+            e.preventDefault();
             
-            // 実機対応：より厳しい条件でタップ判定
-            if (!isScrolling && touchDuration < 300) {
-              e.preventDefault();
-              e.stopPropagation();
-              // 少し遅延を入れて確実に実行
+            const currentTime = Date.now();
+            tapCount++;
+            
+            if (tapCount === 1) {
+              // 最初のタップ：時刻を記録して待機
+              firstTapTime = currentTime;
+              item.style.backgroundColor = 'rgba(59, 130, 246, 0.1)'; // 視覚的フィードバック
+              
+              // 500ms以内に2回目のタップがなければリセット
               setTimeout(() => {
+                if (tapCount === 1) {
+                  tapCount = 0;
+                  item.style.backgroundColor = ''; // 背景色をリセット
+                }
+              }, 500);
+              
+            } else if (tapCount === 2) {
+              // 2回目のタップ：500ms以内なら選択実行
+              if (currentTime - firstTapTime <= 500) {
+                item.style.backgroundColor = ''; // 背景色をリセット
                 handleItemClick();
-              }, 50);
+              }
+              // カウントリセット
+              tapCount = 0;
             }
-            
-            // リセット
-            isScrolling = false;
           });
           
-          // デスクトップ用のclickイベント
+          // デスクトップ用のclickイベント（従来通り1回クリック）
           item.addEventListener('click', (e) => {
             // タッチデバイスの場合はclickを無視
             if ('ontouchstart' in window) {
@@ -1822,23 +1810,6 @@
       }
       
       dropdown.classList.add('show');
-      
-      // ドロップダウン全体でスクロールイベントを監視（実機対応）
-      dropdown.addEventListener('scroll', () => {
-        // スクロール中は全アイテムをスクロール状態にマーク
-        const items = dropdown.querySelectorAll('.dropdown-item');
-        items.forEach(item => {
-          item._isScrolling = true;
-        });
-        
-        // スクロール終了後にリセット
-        clearTimeout(dropdown._scrollTimeout);
-        dropdown._scrollTimeout = setTimeout(() => {
-          items.forEach(item => {
-            item._isScrolling = false;
-          });
-        }, 100);
-      }, { passive: true });
     }
 
     // ドロップダウンメニューを非表示
