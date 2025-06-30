@@ -1741,7 +1741,7 @@
             isDropdownActionInProgress = true;
             input.value = name;
             hideDropdown(dropdownId);
-    
+            
             if (inputId === 'empName') {
               // 出勤・退勤フィールドの場合：選択した名前でボタン状態を更新
               updateButtons(name);
@@ -1754,14 +1754,13 @@
               updateClearButton('searchEmpName', 'clearSearchBtn');
             }
             
-            // 選択完了後、少し遅延してキーボードを閉じる
+            // フラグをリセット
             setTimeout(() => {
-              input.blur();
               isDropdownActionInProgress = false;
-            }, 200);
+            }, 300);
           };
 
-          // シンプルなclickイベントのみ（iPadでも正常動作）
+          // シンプルなclickイベントのみ（参考コードと同じ方式）
           item.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
