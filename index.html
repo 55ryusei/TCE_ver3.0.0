@@ -2478,48 +2478,14 @@
         searchInput.focus();
       });
       
-      // 外部クリック・タッチでドロップダウンを閉じる
-      const hideDropdownsOnOutsideTouch = (e) => {
+      // 外部クリックでドロップダウンを閉じる
+      document.addEventListener('click', (e) => {
         if (isDropdownActionInProgress) return;
         
-        // プルダウン関連要素のチェックを強化
-        const isDropdownRelated = e.target.closest('.input-wrapper') || 
-                                 e.target.closest('.dropdown-menu') || 
-                                 e.target.classList.contains('dropdown-item') ||
-                                 e.target.classList.contains('dropdown-empty');
-        
-        if (!isDropdownRelated) {
-          isDropdownActionInProgress = true;
+        if (!e.target.closest('.input-wrapper')) {
           hideAllDropdowns();
-          
-          // プルダウン操作以外の場合のみキーボードを閉じる
-          const activeElement = document.activeElement;
-          if (activeElement && (activeElement.id === 'empName' || activeElement.id === 'searchEmpName')) {
-            activeElement.blur();
-          }
-          
-          setTimeout(() => {
-            isDropdownActionInProgress = false;
-          }, 300);
         }
-      };
-      
-      // タッチデバイス用：touchend を使用してスクロールとの干渉を避ける
-      document.addEventListener('touchend', (e) => {
-        // ドロップダウンが表示されている場合のみ処理
-        const empDropdown = document.getElementById('empNameDropdown');
-        const searchDropdown = document.getElementById('searchEmpNameDropdown');
-        const isAnyDropdownVisible = empDropdown.classList.contains('show') || searchDropdown.classList.contains('show');
-        
-        if (isAnyDropdownVisible) {
-          hideDropdownsOnOutsideTouch(e);
-        }
-      }, { passive: true });
-      
-      // デスクトップ用
-      if (!('ontouchstart' in window)) {
-        document.addEventListener('click', hideDropdownsOnOutsideTouch);
-      }
+      });
       
       // ESCキーでドロップダウンとキーボードを閉じる
       document.addEventListener('keydown', (e) => {
