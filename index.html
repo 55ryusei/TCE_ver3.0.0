@@ -1652,26 +1652,32 @@
       return 0;
     }
 
-    // 既存の名前リストを取得（最新記録順）
+    // 名前の使用順序を更新
+    function updateNameUsageOrder(name) {
+      let nameUsage = JSON.parse(localStorage.getItem('nameUsageOrder') || '{}');
+      // 現在のタイムスタンプを使用順序として記録
+      nameUsage[name] = Date.now();
+      localStorage.setItem('nameUsageOrder', JSON.stringify(nameUsage));
+    }
+
+    // 既存の名前リストを取得（使用順）
     function getExistingNames() {
       const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      const nameUsage = JSON.parse(localStorage.getItem('nameUsageOrder') || '{}');
       const names = Object.keys(data);
       
-      // 各名前の最新記録日を取得してソート
-      const namesWithLastDate = names.map(name => {
-        const dates = Object.keys(data[name]).sort(); // 日付をソート
-        const lastDate = dates[dates.length - 1]; // 最新の日付
-        return { name, lastDate };
+      // 各名前の使用順序を取得してソート
+      const namesWithUsage = names.map(name => {
+        const lastUsed = nameUsage[name] || 0; // 使用順序（数字が大きいほど最近使用）
+        return { name, lastUsed };
       });
       
-      // 最新記録日の降順でソート（新しい順）
-      namesWithLastDate.sort((a, b) => {
-        if (!a.lastDate) return 1;
-        if (!b.lastDate) return -1;
-        return b.lastDate.localeCompare(a.lastDate);
+      // 使用順序の降順でソート（最近使った順）
+      namesWithUsage.sort((a, b) => {
+        return b.lastUsed - a.lastUsed;
       });
       
-      return namesWithLastDate.map(item => item.name);
+      return namesWithUsage.map(item => item.name);
     }
 
     // クリアボタンの表示制御（汎用関数）
@@ -1727,12 +1733,28 @@
           const nameSpan = document.createElement('span');
           nameSpan.textContent = name;
           
-          // 最後の記録日を取得
-          const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-          const lastDate = Object.keys(data[name]).sort().pop();
+          // 最後の使用日を取得
+          const nameUsage = JSON.parse(localStorage.getItem('nameUsageOrder') || '{}');
+          const lastUsed = nameUsage[name];
           const infoSpan = document.createElement('span');
           infoSpan.className = 'dropdown-item-info';
-          infoSpan.textContent = lastDate ? `最終: ${lastDate}` : '';
+          if (lastUsed) {
+            const lastUsedDate = new Date(lastUsed);
+            const today = new Date();
+            const diffDays = Math.floor((today - lastUsedDate) / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 0) {
+              infoSpan.textContent = '今日';
+            } else if (diffDays === 1) {
+              infoSpan.textContent = '昨日';
+            } else if (diffDays < 7) {
+              infoSpan.textContent = `${diffDays}日前`;
+            } else {
+              infoSpan.textContent = `${Math.floor(diffDays / 7)}週間前`;
+            }
+          } else {
+            infoSpan.textContent = '';
+          }
           
           item.appendChild(nameSpan);
           item.appendChild(infoSpan);
@@ -1741,6 +1763,9 @@
             isDropdownActionInProgress = true;
             input.value = name;
             hideDropdown(dropdownId);
+            
+            // 使用順序を更新
+            updateNameUsageOrder(name);
             
             if (inputId === 'empName') {
               // 出勤・退勤フィールドの場合：選択した名前でボタン状態を更新
@@ -1772,6 +1797,11 @@
       }
       
       dropdown.classList.add('show');
+      
+      // ドロップダウンを開く度に一番上から表示
+      setTimeout(() => {
+        dropdown.scrollTop = 0;
+      }, 0);
     }
 
     // ドロップダウンメニューを非表示
@@ -2205,6 +2235,10 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       playSuccessSound(type);
       showAlert('記録しました', 'success');
+      
+      // 使用順序を更新
+      updateNameUsageOrder(name);
+      
       document.getElementById('empName').value = '';
       updateButtons('');
       // 名前フィールドのクリアボタンも非表示にする
