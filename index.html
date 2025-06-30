@@ -805,97 +805,6 @@
       }
     }
 
-    /* バックアップガイド用のスタイル */
-    .backup-guide {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 3000;
-      opacity: 0;
-      animation: fadeIn 0.3s ease-out forwards;
-    }
-
-    .backup-guide-content {
-      background: rgba(255, 255, 255, 0.98);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-radius: 24px;
-      padding: 40px;
-      margin: 20px;
-      max-width: 500px;
-      width: 100%;
-      text-align: center;
-      border: 1px solid rgba(255, 255, 255, 0.6);
-      box-shadow: 
-        0 25px 50px rgba(0, 0, 0, 0.1),
-        0 10px 25px rgba(0, 0, 0, 0.06);
-      transform: scale(0.9);
-      animation: dialogAppear 0.3s ease-out forwards;
-    }
-
-    .backup-guide h3 {
-      font-size: 1.4em;
-      font-weight: 600;
-      color: #1e293b;
-      margin-bottom: 20px;
-    }
-
-    .backup-guide-steps {
-      text-align: left;
-      margin: 24px 0;
-      background: #f8fafc;
-      border-radius: 16px;
-      padding: 20px;
-    }
-
-    .backup-guide-step {
-      display: flex;
-      align-items: center;
-      margin: 12px 0;
-      color: #475569;
-      font-size: 0.95em;
-    }
-
-    .backup-guide-step .step-number {
-      background: #3b82f6;
-      color: white;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.8em;
-      font-weight: 600;
-      margin-right: 12px;
-      flex-shrink: 0;
-    }
-
-    .backup-guide-close {
-      background: #3b82f6;
-      color: white;
-      padding: 14px 28px;
-      border: none;
-      border-radius: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      font-size: 1em;
-    }
-
-    .backup-guide-close:hover {
-      background: #2563eb;
-      transform: translateY(-1px);
-    }
-
     /* 確認ダイアログのスタイル */
     .confirm-dialog {
       position: fixed;
@@ -1538,7 +1447,6 @@
     <div id="adminMenu">
       <button id="backupBtn" class="admin-btn success">バックアップ</button>
       <button id="restoreBtn" class="admin-btn warning">リストア</button>
-      <button id="helpBtn" class="admin-btn">ヘルプ</button>
       <input type="file" id="restoreFile" style="display:none;">
       <button id="clearAllBtn" class="admin-btn danger">全データ削除</button>
     </div>
@@ -1610,55 +1518,6 @@
 
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
-
-    // バックアップガイドを表示
-    function showBackupGuide() {
-      const guide = document.createElement('div');
-      guide.className = 'backup-guide';
-      
-      guide.innerHTML = `
-        <div class="backup-guide-content">
-          <h3>📁 バックアップファイルの保存方法</h3>
-          <p>ダウンロードしたファイルを「ファイル」アプリに保存する手順：</p>
-          
-          <div class="backup-guide-steps">
-            <div class="backup-guide-step">
-              <div class="step-number">1</div>
-              <span>ダウンロード後、画面下部の「ダウンロード」アイコンをタップ</span>
-            </div>
-            <div class="backup-guide-step">
-              <div class="step-number">2</div>
-              <span>ファイル名の右側にある「共有」ボタンをタップ</span>
-            </div>
-            <div class="backup-guide-step">
-              <div class="step-number">3</div>
-              <span>「"ファイル"に保存」を選択</span>
-            </div>
-            <div class="backup-guide-step">
-              <div class="step-number">4</div>
-              <span>保存場所（iCloud Drive、このiPad内など）を選んで「保存」</span>
-            </div>
-          </div>
-          
-          <p style="font-size: 0.9em; color: #666; margin-top: 16px;">
-            💡 共有メニューが表示される場合は、直接「"ファイル"に保存」を選択できます。
-          </p>
-          
-          <button class="backup-guide-close" onclick="this.parentElement.parentElement.remove()">
-            閉じる
-          </button>
-        </div>
-      `;
-      
-      document.body.appendChild(guide);
-      
-      // 背景クリックで閉じる
-      guide.addEventListener('click', (e) => {
-        if (e.target === guide) {
-          guide.remove();
-        }
-      });
-    }
 
     // 効果音再生関数
     function playSuccessSound(type = 'in') {
@@ -2711,7 +2570,7 @@
         saveEmpPair(nameInput.value.trim(), 'out');
       });
       
-      // 改善されたバックアップ機能
+      // 改善されたバックアップ機能（キャンセル時の修正版）
       document.getElementById('backupBtn').addEventListener('click', async () => {
         const data = localStorage.getItem(STORAGE_KEY) || '{}';
         const now = new Date();
@@ -2735,8 +2594,16 @@
               return;
             }
           } catch (error) {
-            console.log('Share API failed:', error);
-            // フォールバックに進む
+            console.log('Share API error:', error);
+            
+            // ユーザーがキャンセルした場合はフォールバックを実行しない
+            if (error.name === 'AbortError' || error.message.includes('cancel') || error.message.includes('abort')) {
+              console.log('ユーザーがキャンセルしました');
+              return; // ここで処理を終了、フォールバックは実行しない
+            }
+            
+            // その他のエラーの場合のみフォールバックに進む
+            console.log('Share API failed, falling back to download');
           }
         }
         
@@ -2782,11 +2649,6 @@
         } else if (pwd !== null) {
           showAlert('パスワードが違います', 'error');
         }
-      });
-
-      // ヘルプボタン
-      document.getElementById('helpBtn').addEventListener('click', () => {
-        showBackupGuide();
       });
       
       // 時計の初期化と更新
