@@ -1775,18 +1775,14 @@
             input.value = name;
             hideDropdown(dropdownId);
             
-            // 使用順序を更新
-            updateNameUsageOrder(name);
-            
             if (inputId === 'empName') {
-              // 出勤・退勤フィールドの場合：選択した名前でボタン状態を更新
+              // 出勤・退勤フィールドの場合のみ使用順序を更新
+              updateNameUsageOrder(name);
               updateButtons(name);
-              // クリアボタンの表示制御を更新
               updateClearButton('empName', 'clearEmpNameBtn');
             } else if (inputId === 'searchEmpName') {
-              // 検索フィールドの場合：検索結果のみ更新、ボタン状態は変更しない
+              // 検索フィールドの場合：使用順序は更新しない
               displayEmpRecords();
-              // クリアボタンの表示制御を更新
               updateClearButton('searchEmpName', 'clearSearchBtn');
             }
             
