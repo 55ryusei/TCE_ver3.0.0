@@ -2563,44 +2563,15 @@
         saveEmpPair(nameInput.value.trim(), 'out');
       });
       
-      // 改善されたバックアップ機能（キャンセル時の修正版）
-      document.getElementById('backupBtn').addEventListener('click', async () => {
+      // シンプルなバックアップ機能（JSONファイルのみ）
+      document.getElementById('backupBtn').addEventListener('click', () => {
         const data = localStorage.getItem(STORAGE_KEY) || '{}';
         const now = new Date();
         const dateStr = now.toISOString().slice(0,10).replace(/-/g, '');
         const timeStr = now.toTimeString().slice(0,5).replace(/:/g, '');
         const filename = `勤怠データ_${dateStr}_${timeStr}.json`;
         
-        // Web Share API対応チェック（iPad/iPhone）
-        if (navigator.share && navigator.canShare) {
-          try {
-            const blob = new Blob([data], { type: 'application/json' });
-            const file = new File([blob], filename, { type: 'application/json' });
-            
-            if (navigator.canShare({ files: [file] })) {
-              await navigator.share({
-                title: '勤怠管理バックアップ',
-                text: '勤怠データのバックアップファイルです',
-                files: [file]
-              });
-              showAlert('バックアップを共有しました', 'success');
-              return;
-            }
-          } catch (error) {
-            console.log('Share API error:', error);
-            
-            // ユーザーがキャンセルした場合はフォールバックを実行しない
-            if (error.name === 'AbortError' || error.message.includes('cancel') || error.message.includes('abort')) {
-              console.log('ユーザーがキャンセルしました');
-              return; // ここで処理を終了、フォールバックは実行しない
-            }
-            
-            // その他のエラーの場合のみフォールバックに進む
-            console.log('Share API failed, falling back to download');
-          }
-        }
-        
-        // フォールバック：従来のダウンロード方式
+        // JSONファイルを直接ダウンロード
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); 
